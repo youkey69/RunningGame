@@ -266,7 +266,7 @@ function drawBackground() {
   ctx.fillRect(0, 215, canvas.width, 325);
   ctx.fillStyle = "#c98d5a";
   ctx.beginPath();
-  ctx.moveTo(0, 160);
+  ctx.moveTo(0, 210);
   ctx.lineTo(canvas.width, 210);
   ctx.lineTo(canvas.width, 500);
   ctx.lineTo(0, 470);
@@ -332,20 +332,10 @@ function formatTime(seconds) {
   return `${minutes}:${rest}`;
 }
 
-const DOUBLE_TAP_MS = 280;
 const TAP_MOVE_LIMIT = 18;
-const EDGE_TAP_RATIO = 0.24;
+const SWIPE_MOVE_LIMIT = 48;
 
-let lastEdgeTap = null;
-let singleTapTimeout = null;
 let touchStart = null;
-
-function getTapZone(clientX, rect) {
-  const localX = clientX - rect.left;
-  if (localX < rect.width * EDGE_TAP_RATIO) return "left";
-  if (localX > rect.width * (1 - EDGE_TAP_RATIO)) return "right";
-  return "center";
-}
 
 document.addEventListener("pointerdown", (event) => {
   if (event.target.closest("button")) {
@@ -360,33 +350,18 @@ document.addEventListener("pointerup", (event) => {
     touchStart = null;
     return;
   }
-  
+
   if (!touchStart) return;
   const dx = event.clientX - touchStart.x;
   const dy = event.clientY - touchStart.y;
   const moved = Math.hypot(dx, dy);
 
-  if (moved < TAP_MOVE_LIMIT) {
-    const now = performance.now();
-    const viewportRect = { left: 0, width: window.innerWidth };
-    const zone = getTapZone(event.clientX, viewportRect);
-    const isEdgeDoubleTap =
-      lastEdgeTap && lastEdgeTap.zone === zone && zone !== "center" && now - lastEdgeTap.time < DOUBLE_TAP_MS;
+  if (Math.abs(dx) > SWIPE_MOVE_LIMIT && Math.abs(dx) > Math.abs(dy)) {
+    setPace(dx > 0 ? "fast" : "slow");
+  } else if (moved < TAP_MOVE_LIMIT) {
+    const direction = event.clientY < window.innerHeight / 2 ? -1 : 1;
+    moveLane(direction);
 
-    if (isEdgeDoubleTap) {
-      clearTimeout(singleTapTimeout);
-      singleTapTimeout = null;
-      lastEdgeTap = null;
-      setPace(zone === "right" ? "fast" : "slow");
-    } else {
-      lastEdgeTap = zone === "center" ? null : { zone, time: now };
-      const direction = event.clientY < window.innerHeight / 2 ? -1 : 1;
-      clearTimeout(singleTapTimeout);
-      singleTapTimeout = setTimeout(() => {
-        moveLane(direction);
-        singleTapTimeout = null;
-      }, DOUBLE_TAP_MS);
-    }
   }
   touchStart = null;
 });
