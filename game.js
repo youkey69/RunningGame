@@ -74,6 +74,7 @@ function update(dt) {
 
   const pace = PACE[state.pace];
   state.time += dt;
+
   state.distance += pace.speed * DISTANCE_MULTIPLIER * dt;
   state.stamina -= pace.drain * dt;
   state.hitCooldown = Math.max(0, state.hitCooldown - dt);
@@ -202,6 +203,7 @@ function drawBackground() {
     ctx.setLineDash([24, 20]);
     ctx.beginPath();
     ctx.moveTo(0, LANES[i] + 18);
+
     ctx.lineTo(canvas.width, LANES[i] + 18);
     ctx.stroke();
   }
@@ -277,6 +279,7 @@ function getTapZone(clientX, rect) {
 
 canvas.addEventListener("pointerdown", (event) => {
   touchStart = { x: event.clientX, y: event.clientY };
+
 });
 
 canvas.addEventListener("pointerup", (event) => {
