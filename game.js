@@ -7,7 +7,7 @@ const message = document.querySelector("#message");
 const startButton = document.querySelector("#start");
 
 const COURSE_METERS = 5000;
-const DISTANCE_MULTIPLIER = 5;
+const DISTANCE_COUNTUP_MULTIPLIER = 40;
 const LANES = [190, 280, 380];
 const PLAYER_X = 150;
 const PACE = {
@@ -95,7 +95,7 @@ function update(dt) {
 
   const pace = PACE[state.pace];
   state.time += dt;
-  state.distance += pace.speed * DISTANCE_MULTIPLIER * dt;
+  state.distance += pace.speed * DISTANCE_COUNTUP_MULTIPLIER * dt;
   state.stamina -= pace.drain * dt;
   state.hitCooldown = Math.max(0, state.hitCooldown - dt);
   state.hitFlash = Math.max(0, state.hitFlash - dt);
@@ -333,7 +333,6 @@ function formatTime(seconds) {
   return `${minutes}:${rest}`;
 }
 
-const TAP_MOVE_LIMIT = 18;
 const SWIPE_MOVE_LIMIT = 48;
 
 let touchStart = null;
@@ -355,13 +354,10 @@ document.addEventListener("pointerup", (event) => {
   if (!touchStart) return;
   const dx = event.clientX - touchStart.x;
   const dy = event.clientY - touchStart.y;
-  const moved = Math.hypot(dx, dy);
-
   if (Math.abs(dx) > SWIPE_MOVE_LIMIT && Math.abs(dx) > Math.abs(dy)) {
     setPace(dx > 0 ? "fast" : "slow");
-  } else if (moved < TAP_MOVE_LIMIT) {
-    const direction = event.clientY < window.innerHeight / 2 ? -1 : 1;
-    moveLane(direction);
+  } else if (Math.abs(dy) > SWIPE_MOVE_LIMIT && Math.abs(dy) > Math.abs(dx)) {
+    moveLane(dy < 0 ? -1 : 1);
   }
   touchStart = null;
 });
@@ -374,8 +370,6 @@ window.addEventListener("keydown", (event) => {
   if (event.key === " " || event.key === "Enter") resetGame();
 });
 
-document.querySelector("#laneBack").addEventListener("click", () => moveLane(-1));
-document.querySelector("#laneFront").addEventListener("click", () => moveLane(1));
 document.querySelector("#slow").addEventListener("click", () => setPace("slow"));
 document.querySelector("#fast").addEventListener("click", () => setPace("fast"));
 startButton.addEventListener("click", resetGame);
