@@ -266,8 +266,9 @@ function drawBackground() {
   ctx.fillRect(0, 215, canvas.width, 325);
   ctx.fillStyle = "#c98d5a";
   ctx.beginPath();
-  ctx.moveTo(0, 210);
-  ctx.lineTo(canvas.width, 210);
+  ctx.moveTo(0, 160);
+  ctx.lineTo(canvas.width, 160);
+
   ctx.lineTo(canvas.width, 500);
   ctx.lineTo(0, 470);
   ctx.closePath();
@@ -361,7 +362,6 @@ document.addEventListener("pointerup", (event) => {
   } else if (moved < TAP_MOVE_LIMIT) {
     const direction = event.clientY < window.innerHeight / 2 ? -1 : 1;
     moveLane(direction);
-
   }
   touchStart = null;
 });
