@@ -7,9 +7,9 @@ const message = document.querySelector("#message");
 const startButton = document.querySelector("#start");
 
 const COURSE_METERS = 5000;
-
 const DISTANCE_MULTIPLIER = 5;
 const LANES = [190, 280, 380];
+const PLAYER_X = 150;
 const PACE = {
   slow: { label: "Slow", speed: 7.4, drain: 3.3 },
   normal: { label: "Normal", speed: 10.2, drain: 5.2 },
@@ -27,8 +27,8 @@ const state = {
   itemTimer: 0,
   hitCooldown: 0,
   hitFlash: 0,
-
   objects: [],
+  dusts: [],
   worldOffset: 0,
   time: 0,
   lastFrame: performance.now(),
@@ -47,6 +47,7 @@ function resetGame() {
     hitCooldown: 0,
     hitFlash: 0,
     objects: [],
+    dusts: [],
     worldOffset: 0,
     time: 0,
     lastFrame: performance.now(),
@@ -61,6 +62,7 @@ function moveLane(direction) {
 
 function setPace(pace) {
   if (!state.running) return;
+  if (pace === "fast") emitDust();
   state.pace = pace;
 }
 
@@ -73,18 +75,39 @@ function spawn(type) {
   });
 }
 
+function emitDust() {
+  const footY = LANES[state.lane] + 4;
+  for (let i = 0; i < 9; i++) {
+    state.dusts.push({
+      x: PLAYER_X - 8 + Math.random() * 20,
+      y: footY + Math.random() * 8,
+      vx: -70 - Math.random() * 80,
+      vy: -8 - Math.random() * 28,
+      life: 0.32 + Math.random() * 0.22,
+      maxLife: 0.54,
+      size: 3 + Math.random() * 5,
+    });
+  }
+}
+
 function update(dt) {
   if (!state.running) return;
 
   const pace = PACE[state.pace];
   state.time += dt;
-
   state.distance += pace.speed * DISTANCE_MULTIPLIER * dt;
   state.stamina -= pace.drain * dt;
   state.hitCooldown = Math.max(0, state.hitCooldown - dt);
   state.hitFlash = Math.max(0, state.hitFlash - dt);
   state.worldOffset += pace.speed * 18 * dt;
 
+  for (const dust of state.dusts) {
+    dust.x += dust.vx * dt;
+    dust.y += dust.vy * dt;
+    dust.vy += 80 * dt;
+    dust.life -= dt;
+  }
+  state.dusts = state.dusts.filter((dust) => dust.life > 0);
   state.obstacleTimer -= dt;
   state.itemTimer -= dt;
 
@@ -113,7 +136,6 @@ function update(dt) {
         state.pace = "slow";
         state.hitCooldown = 1;
         state.hitFlash = 1;
-
       }
     }
   }
@@ -177,6 +199,50 @@ function drawWater(x, y, scale) {
   ctx.fillRect(x, y - 8 * s, 7 * s, s);
 }
 
+function wrap(value, length) {
+  return ((value % length) + length) % length;
+}
+
+function drawCloud(x, y, scale) {
+  const s = 8 * scale;
+  ctx.fillStyle = "#fff7d6";
+  ctx.fillRect(x, y + s, 9 * s, 3 * s);
+  ctx.fillRect(x + 2 * s, y, 4 * s, 4 * s);
+  ctx.fillRect(x + 5 * s, y + s, 5 * s, 3 * s);
+  ctx.fillStyle = "#c8efff";
+  ctx.fillRect(x + s, y + 4 * s, 8 * s, s);
+}
+
+function drawTree(x, y, scale) {
+  const s = 6 * scale;
+  ctx.fillStyle = "#7b4a2b";
+  ctx.fillRect(x + 6 * s, y + 8 * s, 3 * s, 7 * s);
+  ctx.fillStyle = "#41a45a";
+  ctx.fillRect(x + 2 * s, y + 6 * s, 11 * s, 7 * s);
+  ctx.fillStyle = "#2f7f4e";
+  ctx.fillRect(x + 4 * s, y, 7 * s, 8 * s);
+  ctx.fillRect(x, y + 4 * s, 14 * s, 5 * s);
+}
+
+function drawStones() {
+  for (let i = 0; i < 28; i++) {
+    const x = wrap(i * 73 - state.worldOffset * 0.9, canvas.width + 90) - 45;
+    const lane = i % LANES.length;
+    const y = LANES[lane] + 8 + ((i * 17) % 36);
+    const size = 2 + (i % 3);
+    ctx.fillStyle = i % 2 === 0 ? "#7b7770" : "#9d9588";
+    ctx.fillRect(x, y, size * 3, size * 2);
+  }
+}
+
+function drawDust() {
+  for (const dust of state.dusts) {
+    const alpha = Math.max(0, dust.life / dust.maxLife);
+    ctx.fillStyle = `rgba(218, 184, 126, ${alpha})`;
+    ctx.fillRect(dust.x, dust.y, dust.size, dust.size);
+  }
+}
+
 function drawBackground() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = "#78d9ff";
@@ -184,13 +250,16 @@ function drawBackground() {
   ctx.fillStyle = "#fff0b8";
   ctx.fillRect(730, 34, 54, 54);
 
-  for (let i = -1; i < 8; i++) {
-    const x = ((i * 170 - state.worldOffset * 0.25) % 1190) - 120;
-    ctx.fillStyle = "#41a45a";
-    ctx.fillRect(x, 138, 90, 90);
-    ctx.fillStyle = "#2f7f4e";
-    ctx.fillRect(x + 20, 96, 50, 55);
-    ctx.fillRect(x + 5, 118, 80, 42);
+  for (let i = 0; i < 7; i++) {
+    const x = wrap(i * 230 - state.worldOffset * 0.08, canvas.width + 180) - 120;
+    const y = 36 + ((i * 29) % 58);
+    drawCloud(x, y, 0.75 + (i % 3) * 0.18);
+  }
+
+  for (let i = 0; i < 10; i++) {
+    const x = wrap(i * 145 - state.worldOffset * 0.25, canvas.width + 170) - 90;
+    const y = 96 + ((i * 13) % 34);
+    drawTree(x, y, 0.78 + (i % 3) * 0.08);
   }
 
   ctx.fillStyle = "#49b85f";
@@ -203,17 +272,7 @@ function drawBackground() {
   ctx.lineTo(0, 470);
   ctx.closePath();
   ctx.fill();
-
-  for (let i = 0; i < LANES.length; i++) {
-    ctx.strokeStyle = i === state.lane ? "#fff0b8" : "#8a533b";
-    ctx.lineWidth = i === state.lane ? 6 : 4;
-    ctx.setLineDash([24, 20]);
-    ctx.beginPath();
-    ctx.moveTo(0, LANES[i] + 18);
-    ctx.lineTo(canvas.width, LANES[i] + 18);
-    ctx.stroke();
-  }
-  ctx.setLineDash([]);
+  drawStones();
 }
 
 function draw() {
@@ -236,10 +295,12 @@ function draw() {
     }
   }
 
+  drawDust();
+
   const playerY = LANES[state.lane];
   const playerVisible = state.hitFlash <= 0 || Math.floor(state.hitFlash * 12) % 2 === 0;
   if (playerVisible) {
-    drawPixelRunner(150, playerY, 0.86 + state.lane * 0.18, {
+    drawPixelRunner(PLAYER_X, playerY, 0.86 + state.lane * 0.18, {
       skin: "#f6b26b",
       hair: "#5a2c2a",
       shirt: "#36d1dc",
@@ -299,7 +360,7 @@ document.addEventListener("pointerup", (event) => {
     touchStart = null;
     return;
   }
-
+  
   if (!touchStart) return;
   const dx = event.clientX - touchStart.x;
   const dy = event.clientY - touchStart.y;
