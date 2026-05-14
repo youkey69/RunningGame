@@ -205,7 +205,6 @@ function drawBackground() {
     ctx.moveTo(0, LANES[i] + 18);
 
     ctx.lineTo(canvas.width, LANES[i] + 18);
-
     ctx.stroke();
   }
   ctx.setLineDash([]);
@@ -263,12 +262,24 @@ function formatTime(seconds) {
   return `${minutes}:${rest}`;
 }
 
-let tapTimer = 0;
+const DOUBLE_TAP_MS = 280;
+const TAP_MOVE_LIMIT = 18;
+const EDGE_TAP_RATIO = 0.24;
+
+let lastEdgeTap = null;
 let singleTapTimeout = null;
 let touchStart = null;
 
+function getTapZone(clientX, rect) {
+  const localX = clientX - rect.left;
+  if (localX < rect.width * EDGE_TAP_RATIO) return "left";
+  if (localX > rect.width * (1 - EDGE_TAP_RATIO)) return "right";
+  return "center";
+}
+
 canvas.addEventListener("pointerdown", (event) => {
-  touchStart = { x: event.clientX, y: event.clientY, time: performance.now() };
+  touchStart = { x: event.clientX, y: event.clientY };
+
 });
 
 canvas.addEventListener("pointerup", (event) => {
@@ -277,23 +288,26 @@ canvas.addEventListener("pointerup", (event) => {
   const dy = event.clientY - touchStart.y;
   const moved = Math.hypot(dx, dy);
 
-  if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy)) {
-    setPace(dx > 0 ? "fast" : "slow");
-  } else if (moved < 18) {
+  if (moved < TAP_MOVE_LIMIT) {
     const now = performance.now();
-    if (now - tapTimer < 280) {
+    const rect = canvas.getBoundingClientRect();
+    const zone = getTapZone(event.clientX, rect);
+    const isEdgeDoubleTap =
+      lastEdgeTap && lastEdgeTap.zone === zone && zone !== "center" && now - lastEdgeTap.time < DOUBLE_TAP_MS;
 
+    if (isEdgeDoubleTap) {
       clearTimeout(singleTapTimeout);
       singleTapTimeout = null;
-      tapTimer = 0;
-      moveLane(1);
+      lastEdgeTap = null;
+      setPace(zone === "right" ? "fast" : "slow");
     } else {
-      tapTimer = now;
+      lastEdgeTap = zone === "center" ? null : { zone, time: now };
+      const direction = event.clientY < rect.top + rect.height / 2 ? -1 : 1;
+      clearTimeout(singleTapTimeout);
       singleTapTimeout = setTimeout(() => {
-        moveLane(-1);
+        moveLane(direction);
         singleTapTimeout = null;
-        tapTimer = 0;
-      }, 280);
+      }, DOUBLE_TAP_MS);
     }
   }
   touchStart = null;
