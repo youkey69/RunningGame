@@ -108,7 +108,6 @@ function update(dt) {
     dust.life -= dt;
   }
   state.dusts = state.dusts.filter((dust) => dust.life > 0);
-
   state.obstacleTimer -= dt;
   state.itemTimer -= dt;
 
@@ -273,7 +272,6 @@ function drawBackground() {
   ctx.lineTo(0, 470);
   ctx.closePath();
   ctx.fill();
-
   drawStones();
 }
 
@@ -362,6 +360,7 @@ document.addEventListener("pointerup", (event) => {
     touchStart = null;
     return;
   }
+  
   if (!touchStart) return;
   const dx = event.clientX - touchStart.x;
   const dy = event.clientY - touchStart.y;
