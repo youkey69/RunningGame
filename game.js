@@ -7,6 +7,7 @@ const message = document.querySelector("#message");
 const startButton = document.querySelector("#start");
 
 const COURSE_METERS = 5000;
+const DISTANCE_MULTIPLIER = 3;
 const LANES = [190, 280, 380];
 const PACE = {
   slow: { label: "Slow", speed: 7.4, drain: 3.3 },
@@ -73,10 +74,11 @@ function update(dt) {
 
   const pace = PACE[state.pace];
   state.time += dt;
-  state.distance += pace.speed * dt;
+
+  state.distance += pace.speed * DISTANCE_MULTIPLIER * dt;
   state.stamina -= pace.drain * dt;
   state.hitCooldown = Math.max(0, state.hitCooldown - dt);
-  state.worldOffset += pace.speed * 18 * dt;
+  state.worldOffset += pace.speed * DISTANCE_MULTIPLIER * 18 * dt;
 
   state.obstacleTimer -= dt;
   state.itemTimer -= dt;
@@ -129,20 +131,33 @@ function endGame(text, finished) {
 
 function drawPixelRunner(x, y, laneScale, colors) {
   const s = 4 * laneScale;
+  const stride = Math.sin(state.time * 14) > 0 ? 1 : -1;
+
   ctx.fillStyle = colors.skin;
-  ctx.fillRect(x + 5 * s, y - 16 * s, 5 * s, 5 * s);
+  ctx.fillRect(x + 12 * s, y - 17 * s, 5 * s, 5 * s);
+  ctx.fillRect(x + 16 * s, y - 15 * s, 2 * s, 2 * s);
+
   ctx.fillStyle = colors.hair;
-  ctx.fillRect(x + 4 * s, y - 17 * s, 6 * s, 2 * s);
+  ctx.fillRect(x + 10 * s, y - 18 * s, 6 * s, 2 * s);
+  ctx.fillRect(x + 10 * s, y - 16 * s, 2 * s, 4 * s);
+
   ctx.fillStyle = colors.shirt;
-  ctx.fillRect(x + 4 * s, y - 11 * s, 7 * s, 7 * s);
-  ctx.fillStyle = colors.short;
-  ctx.fillRect(x + 4 * s, y - 4 * s, 7 * s, 4 * s);
+  ctx.fillRect(x + 6 * s, y - 12 * s, 8 * s, 7 * s);
+  ctx.fillRect(x + 12 * s, y - 10 * s, 4 * s, 3 * s);
+
   ctx.fillStyle = colors.skin;
-  const step = Math.sin(state.time * 14) > 0 ? 1 : -1;
-  ctx.fillRect(x + (2 + step) * s, y, 4 * s, 2 * s);
-  ctx.fillRect(x + (9 - step) * s, y, 4 * s, 2 * s);
-  ctx.fillRect(x + (2 - step) * s, y - 9 * s, 3 * s, 2 * s);
-  ctx.fillRect(x + (10 + step) * s, y - 9 * s, 3 * s, 2 * s);
+  ctx.fillRect(x + (4 - stride) * s, y - 10 * s, 4 * s, 2 * s);
+  ctx.fillRect(x + (13 + stride) * s, y - 8 * s, 4 * s, 2 * s);
+
+  ctx.fillStyle = colors.short;
+  ctx.fillRect(x + 6 * s, y - 5 * s, 7 * s, 4 * s);
+
+  ctx.fillStyle = colors.skin;
+  ctx.fillRect(x + (3 + stride) * s, y - 1 * s, 6 * s, 2 * s);
+  ctx.fillRect(x + (10 - stride) * s, y - 1 * s, 5 * s, 2 * s);
+
+  ctx.fillStyle = colors.hair;
+  ctx.fillRect(x + 16 * s, y - 14 * s, s, s);
 }
 
 function drawWater(x, y, scale) {
@@ -188,7 +203,9 @@ function drawBackground() {
     ctx.setLineDash([24, 20]);
     ctx.beginPath();
     ctx.moveTo(0, LANES[i] + 18);
-    ctx.lineTo(canvas.width, LANES[i] - 18);
+
+    ctx.lineTo(canvas.width, LANES[i] + 18);
+
     ctx.stroke();
   }
   ctx.setLineDash([]);
@@ -247,6 +264,7 @@ function formatTime(seconds) {
 }
 
 let tapTimer = 0;
+let singleTapTimeout = null;
 let touchStart = null;
 
 canvas.addEventListener("pointerdown", (event) => {
@@ -264,11 +282,18 @@ canvas.addEventListener("pointerup", (event) => {
   } else if (moved < 18) {
     const now = performance.now();
     if (now - tapTimer < 280) {
-      moveLane(1);
+
+      clearTimeout(singleTapTimeout);
+      singleTapTimeout = null;
       tapTimer = 0;
+      moveLane(1);
     } else {
-      moveLane(-1);
       tapTimer = now;
+      singleTapTimeout = setTimeout(() => {
+        moveLane(-1);
+        singleTapTimeout = null;
+        tapTimer = 0;
+      }, 280);
     }
   }
   touchStart = null;
