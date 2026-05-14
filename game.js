@@ -7,6 +7,7 @@ const message = document.querySelector("#message");
 const startButton = document.querySelector("#start");
 
 const COURSE_METERS = 5000;
+
 const DISTANCE_MULTIPLIER = 5;
 const LANES = [190, 280, 380];
 const PACE = {
@@ -26,6 +27,7 @@ const state = {
   itemTimer: 0,
   hitCooldown: 0,
   hitFlash: 0,
+
   objects: [],
   worldOffset: 0,
   time: 0,
@@ -76,6 +78,7 @@ function update(dt) {
 
   const pace = PACE[state.pace];
   state.time += dt;
+
   state.distance += pace.speed * DISTANCE_MULTIPLIER * dt;
   state.stamina -= pace.drain * dt;
   state.hitCooldown = Math.max(0, state.hitCooldown - dt);
@@ -110,6 +113,7 @@ function update(dt) {
         state.pace = "slow";
         state.hitCooldown = 1;
         state.hitFlash = 1;
+
       }
     }
   }
@@ -295,6 +299,7 @@ document.addEventListener("pointerup", (event) => {
     touchStart = null;
     return;
   }
+
   if (!touchStart) return;
   const dx = event.clientX - touchStart.x;
   const dy = event.clientY - touchStart.y;
