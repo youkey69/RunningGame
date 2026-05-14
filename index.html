@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <title>Pixel Marathon Runner</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main class="game-shell">
+      <section class="hud" aria-label="レース情報">
+        <div>
+          <p class="label">PACE</p>
+          <p><span id="pace">Normal</span></p>
+        </div>
+        <div>
+          <p class="label">STAMINA</p>
+          <div class="meter" aria-label="スタミナ">
+            <span id="staminaBar"></span>
+          </div>
+        </div>
+        <div class="distance">
+          <p class="label">DISTANCE</p>
+          <p><span id="distance">0</span> / 5,000m</p>
+        </div>
+      </section>
+
+      <canvas id="game" width="960" height="540" aria-label="横スクロール型マラソンアクションRPG"></canvas>
+
+      <section class="controls" aria-label="スマホ操作">
+        <button id="laneBack" type="button">奥へ<br /><small>画面上Tap / ↑</small></button>
+        <button id="laneFront" type="button">手前へ<br /><small>画面下Tap / ↓</small></button>
+        <button id="slow" type="button">減速<br /><small>左端2Tap / ←</small></button>
+        <button id="fast" type="button">加速<br /><small>右端2Tap / →</small></button>
+      </section>
+
+      <aside class="message" id="message">
+        <h1>Pixel Marathon Runner</h1>
+        <p>中央レーンから5km先のゴールを目指そう。紙コップでスタミナ回復、敵ランナーは回避！</p>
+        <button id="start" type="button">START</button>
+      </aside>
+    </main>
+
+    <script src="./game.js"></script>
+  </body>
+</html>
