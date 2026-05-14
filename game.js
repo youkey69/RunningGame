@@ -7,7 +7,8 @@ const message = document.querySelector("#message");
 const startButton = document.querySelector("#start");
 
 const COURSE_METERS = 5000;
-const DISTANCE_MULTIPLIER = 3;
+
+const DISTANCE_MULTIPLIER = 5;
 const LANES = [190, 280, 380];
 const PACE = {
   slow: { label: "Slow", speed: 7.4, drain: 3.3 },
@@ -25,6 +26,8 @@ const state = {
   obstacleTimer: 0,
   itemTimer: 0,
   hitCooldown: 0,
+  hitFlash: 0,
+
   objects: [],
   worldOffset: 0,
   time: 0,
@@ -42,6 +45,7 @@ function resetGame() {
     obstacleTimer: 1.1,
     itemTimer: 2.2,
     hitCooldown: 0,
+    hitFlash: 0,
     objects: [],
     worldOffset: 0,
     time: 0,
@@ -78,7 +82,8 @@ function update(dt) {
   state.distance += pace.speed * DISTANCE_MULTIPLIER * dt;
   state.stamina -= pace.drain * dt;
   state.hitCooldown = Math.max(0, state.hitCooldown - dt);
-  state.worldOffset += pace.speed * DISTANCE_MULTIPLIER * 18 * dt;
+  state.hitFlash = Math.max(0, state.hitFlash - dt);
+  state.worldOffset += pace.speed * 18 * dt;
 
   state.obstacleTimer -= dt;
   state.itemTimer -= dt;
@@ -106,7 +111,9 @@ function update(dt) {
       } else if (state.hitCooldown <= 0) {
         state.stamina -= 16;
         state.pace = "slow";
-        state.hitCooldown = 0.9;
+        state.hitCooldown = 1;
+        state.hitFlash = 1;
+
       }
     }
   }
@@ -203,7 +210,6 @@ function drawBackground() {
     ctx.setLineDash([24, 20]);
     ctx.beginPath();
     ctx.moveTo(0, LANES[i] + 18);
-
     ctx.lineTo(canvas.width, LANES[i] + 18);
     ctx.stroke();
   }
@@ -231,12 +237,15 @@ function draw() {
   }
 
   const playerY = LANES[state.lane];
-  drawPixelRunner(150, playerY, 0.86 + state.lane * 0.18, {
-    skin: "#f6b26b",
-    hair: "#5a2c2a",
-    shirt: state.hitCooldown > 0 ? "#ffffff" : "#36d1dc",
-    short: "#2a183b",
-  });
+  const playerVisible = state.hitFlash <= 0 || Math.floor(state.hitFlash * 12) % 2 === 0;
+  if (playerVisible) {
+    drawPixelRunner(150, playerY, 0.86 + state.lane * 0.18, {
+      skin: "#f6b26b",
+      hair: "#5a2c2a",
+      shirt: "#36d1dc",
+      short: "#2a183b",
+    });
+  }
 
   ctx.fillStyle = "#2a183b";
   ctx.font = "bold 26px monospace";
@@ -277,12 +286,20 @@ function getTapZone(clientX, rect) {
   return "center";
 }
 
-canvas.addEventListener("pointerdown", (event) => {
+document.addEventListener("pointerdown", (event) => {
+  if (event.target.closest("button")) {
+    touchStart = null;
+    return;
+  }
   touchStart = { x: event.clientX, y: event.clientY };
-
 });
 
-canvas.addEventListener("pointerup", (event) => {
+document.addEventListener("pointerup", (event) => {
+  if (event.target.closest("button")) {
+    touchStart = null;
+    return;
+  }
+
   if (!touchStart) return;
   const dx = event.clientX - touchStart.x;
   const dy = event.clientY - touchStart.y;
@@ -290,8 +307,8 @@ canvas.addEventListener("pointerup", (event) => {
 
   if (moved < TAP_MOVE_LIMIT) {
     const now = performance.now();
-    const rect = canvas.getBoundingClientRect();
-    const zone = getTapZone(event.clientX, rect);
+    const viewportRect = { left: 0, width: window.innerWidth };
+    const zone = getTapZone(event.clientX, viewportRect);
     const isEdgeDoubleTap =
       lastEdgeTap && lastEdgeTap.zone === zone && zone !== "center" && now - lastEdgeTap.time < DOUBLE_TAP_MS;
 
@@ -302,7 +319,7 @@ canvas.addEventListener("pointerup", (event) => {
       setPace(zone === "right" ? "fast" : "slow");
     } else {
       lastEdgeTap = zone === "center" ? null : { zone, time: now };
-      const direction = event.clientY < rect.top + rect.height / 2 ? -1 : 1;
+      const direction = event.clientY < window.innerHeight / 2 ? -1 : 1;
       clearTimeout(singleTapTimeout);
       singleTapTimeout = setTimeout(() => {
         moveLane(direction);
