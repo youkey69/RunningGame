@@ -8,7 +8,9 @@ const message = document.querySelector("#message");
 const startButton = document.querySelector("#start");
 
 const COURSE_METERS = 5000;
-const DISTANCE_COUNTUP_MULTIPLIER = 40;
+const DISTANCE_MULTIPLIER = 5;
+const WORLD_SCROLL_MULTIPLIER = 18;
+const GROUND_SCROLL_SCALE = 0.9;
 const LANES = [190, 280, 380];
 const PLAYER_X = 150;
 const PACE = {
@@ -100,7 +102,7 @@ function update(dt) {
   state.stamina -= pace.drain * dt;
   state.hitCooldown = Math.max(0, state.hitCooldown - dt);
   state.hitFlash = Math.max(0, state.hitFlash - dt);
-  state.worldOffset += pace.speed * 18 * dt;
+  state.worldOffset += pace.speed * WORLD_SCROLL_MULTIPLIER * dt;
 
   for (const dust of state.dusts) {
     dust.x += dust.vx * dt;
@@ -285,7 +287,8 @@ function drawGrassTufts(baseY, height, scrollScale) {
 
 function drawStones() {
   for (let i = 0; i < 46; i++) {
-    const x = wrap(i * 57 - state.worldOffset * 0.9, canvas.width + 90) - 45;
+    const x = wrap(i * 57 - state.worldOffset * GROUND_SCROLL_SCALE, canvas.width + 90) - 45;
+
     const lane = i % LANES.length;
     const y = LANES[lane] + 8 + ((i * 17) % 54);
     const size = 2 + (i % 3);
@@ -297,7 +300,8 @@ function drawStones() {
 
 function drawDirtTexture() {
   for (let i = 0; i < 170; i++) {
-    const x = wrap(i * 41 - state.worldOffset * 0.9, canvas.width + 48) - 24;
+    const x = wrap(i * 41 - state.worldOffset * GROUND_SCROLL_SCALE, canvas.width + 48) - 24;
+
     const y = 188 + ((i * 31) % 300);
     const color = i % 4 === 0 ? "#a95f2e" : i % 4 === 1 ? "#d48a3e" : i % 4 === 2 ? "#8e4f2b" : "#efad55";
     ditherDot(x, y, i, color, i % 5 === 0 ? 3 : 2);
@@ -305,11 +309,10 @@ function drawDirtTexture() {
 }
 
 function drawFinishFlag() {
-  const metersLeft = COURSE_METERS - state.distance;
-  if (metersLeft > 900) return;
+  const finishWorldX =
+    PLAYER_X + COURSE_METERS * (WORLD_SCROLL_MULTIPLIER / DISTANCE_MULTIPLIER) * GROUND_SCROLL_SCALE;
+  const x = finishWorldX - state.worldOffset * GROUND_SCROLL_SCALE;
 
-  const finishProgress = (900 - metersLeft) / 900;
-  const x = canvas.width + 80 - finishProgress * (canvas.width + 80 - PLAYER_X);
   if (x < -80 || x > canvas.width + 80) return;
 
   pixelRect(x, 122, 4, 82, "#20121f");
