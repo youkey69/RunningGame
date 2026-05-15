@@ -9,20 +9,23 @@ const startButton = document.querySelector("#start");
 
 const COURSE_METERS = 5000;
 const DISTANCE_MULTIPLIER = 3;
+const DISTANCE_COUNTUP_MULTIPLIER = 7;
 
 const WORLD_SCROLL_MULTIPLIER = 18;
 const GROUND_SCROLL_SCALE = 0.9;
+const RUNNER_SCROLL_SCALE = 0.72;
 const LANES = [190, 280, 380];
 const PLAYER_X = 150;
 const PACE = {
   slow: { label: "Slow", speed: 7.4, drain: 3.3 },
-  normal: { label: "Normal", speed: 10.2, drain: 5.2 },
-  fast: { label: "Fast", speed: 13.6, drain: 8.8 },
+  normal: { label: "Normal", speed: 16.2, drain: 6.6 },
+  fast: { label: "Fast", speed: 22.4, drain: 10.8 },
 };
 
 const state = {
   running: false,
   finished: false,
+  paused: false,
   lane: 1,
   stamina: 100,
   distance: 0,
@@ -42,6 +45,7 @@ function resetGame() {
   Object.assign(state, {
     running: true,
     finished: false,
+    paused: false,
     lane: 1,
     stamina: 100,
     distance: 0,
@@ -60,14 +64,35 @@ function resetGame() {
 }
 
 function moveLane(direction) {
-  if (!state.running) return;
+  if (!state.running || state.paused) return;
   state.lane = Math.max(0, Math.min(2, state.lane + direction));
 }
 
 function setPace(pace) {
-  if (!state.running) return;
+  if (!state.running || state.paused) return;
   if (pace === "fast") emitDust();
   state.pace = pace;
+}
+
+function increasePace() {
+  if (state.pace === "slow") {
+    setPace("normal");
+  } else {
+    setPace("fast");
+  }
+}
+
+function decreasePace() {
+  if (state.pace === "fast") {
+    setPace("normal");
+  } else {
+    setPace("slow");
+  }
+}
+
+function togglePause() {
+  if (!state.running) return;
+  state.paused = !state.paused;
 }
 
 function spawn(type) {
@@ -96,8 +121,10 @@ function emitDust() {
 
 function update(dt) {
   if (!state.running) return;
+  if (state.paused) return;
 
   const pace = PACE[state.pace];
+  const groundScrollSpeed = pace.speed * WORLD_SCROLL_MULTIPLIER * GROUND_SCROLL_SCALE;
   state.time += dt;
   state.distance += pace.speed * DISTANCE_COUNTUP_MULTIPLIER * dt;
   state.stamina -= pace.drain * dt;
@@ -126,7 +153,10 @@ function update(dt) {
   }
 
   for (const object of state.objects) {
-    object.x -= (pace.speed * 22 + (object.type === "runner" ? 80 : 40)) * dt;
+    const objectScrollSpeed = object.type === "runner"
+      ? groundScrollSpeed * RUNNER_SCROLL_SCALE
+      : groundScrollSpeed;
+    object.x -= objectScrollSpeed * dt;
     object.bob += dt * 8;
 
     const sameLane = object.lane === state.lane;
@@ -183,6 +213,7 @@ function drawPixelRunner(x, y, laneScale, colors) {
   const skinShadow = colors.skinShadow ?? "#d98245";
   const shirtShadow = colors.shirtShadow ?? "#c92d4e";
   const shoe = colors.shoe ?? "#f5df3a";
+  const glasses = colors.glasses;
 
   // Shadow and speed streaks keep the small sprite grounded and readable.
   pixelRect(baseX + 3 * s, y + 1.5 * s, 16 * s, 1.5 * s, "#5b3427aa");
@@ -225,7 +256,12 @@ function drawPixelRunner(x, y, laneScale, colors) {
   pixelRect(baseX + 11 * s, baseY - 23 * s, 6 * s, 3 * s, colors.hair);
   pixelRect(baseX + 10 * s, baseY - 20 * s, 3 * s, 5 * s, colors.hair);
   pixelRect(baseX + 18 * s, baseY - 19 * s, 3 * s, 2 * s, skinShadow);
-  pixelRect(baseX + 17 * s, baseY - 20 * s, s, s, "#101015");
+  if (glasses) {
+    pixelRect(baseX + 14 * s, baseY - 20 * s, 5 * s, 2 * s, glasses);
+    pixelRect(baseX + 18 * s, baseY - 19 * s, 4 * s, s, glasses);
+  } else {
+    pixelRect(baseX + 17 * s, baseY - 20 * s, s, s, "#101015");
+  }
   pixelRect(baseX + 20 * s, baseY - 17 * s, 2 * s, s, outline);
 }
 
@@ -308,10 +344,10 @@ function drawDirtTexture() {
 }
 
 function drawFinishFlag() {
-const metersLeft = COURSE_METERS - state.distance;
-  const groundPixelsPerMeter = (WORLD_SCROLL_MULTIPLIER / DISTANCE_MULTIPLIER) * GROUND_SCROLL_SCALE;
-  const x = PLAYER_X + metersLeft * groundPixelsPerMeter;
-  
+  const finishWorldX =
+    PLAYER_X + COURSE_METERS * (WORLD_SCROLL_MULTIPLIER / DISTANCE_COUNTUP_MULTIPLIER) * GROUND_SCROLL_SCALE;
+  const x = finishWorldX - state.worldOffset * GROUND_SCROLL_SCALE;
+
   if (x < -80 || x > canvas.width + 80) return;
 
   pixelRect(x, 122, 4, 82, "#20121f");
@@ -377,6 +413,18 @@ function drawBackground() {
   drawGrassTufts(486, 54, 1.1);
 }
 
+function drawPauseOverlay() {
+  pixelRect(348, 218, 264, 86, "#20121fcc");
+  pixelRect(356, 226, 248, 70, "#1f2d55ee");
+  ctx.font = "bold 46px monospace";
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#20121f";
+  ctx.fillText("PAUSE", 482, 273);
+  ctx.fillStyle = "#ffd447";
+  ctx.fillText("PAUSE", 480, 271);
+  ctx.textAlign = "left";
+}
+
 function draw() {
   drawBackground();
 
@@ -393,7 +441,7 @@ function draw() {
       drawPixelRunner(PLAYER_X, playerY, 0.86 + state.lane * 0.18, {
         skin: "#f6b26b",
         hair: "#5a2c2a",
-        shirt: "#36d1dc",
+        shirt: "#ffd447",
         short: "#2a183b",
       });
       continue;
@@ -413,6 +461,8 @@ function draw() {
         hair: "#2a183b",
         shirt: "#ff5964",
         short: "#353b9a",
+        shoe: "#ff2f45",
+        glasses: "#101015",
       });
     }
   }
@@ -432,7 +482,9 @@ function draw() {
   staminaBar.style.width = `${Math.max(0, state.stamina)}%`;
   staminaBar.style.background = state.stamina < 25 ? "var(--danger)" : "linear-gradient(90deg, #48e07c, #f7e34f)";
   distanceText.textContent = Math.floor(Math.min(state.distance, COURSE_METERS)).toLocaleString();
-  paceText.textContent = PACE[state.pace].label;
+  paceText.textContent = state.paused ? "Paused" : PACE[state.pace].label;
+
+  if (state.paused) drawPauseOverlay();
 }
 
 function loop(now) {
@@ -471,9 +523,15 @@ document.addEventListener("pointerup", (event) => {
   const dx = event.clientX - touchStart.x;
   const dy = event.clientY - touchStart.y;
   if (Math.abs(dx) > SWIPE_MOVE_LIMIT && Math.abs(dx) > Math.abs(dy)) {
-    setPace(dx > 0 ? "fast" : "slow");
+    if (dx > 0) {
+      increasePace();
+    } else {
+      decreasePace();
+    }
   } else if (Math.abs(dy) > SWIPE_MOVE_LIMIT && Math.abs(dy) > Math.abs(dx)) {
     moveLane(dy < 0 ? -1 : 1);
+  } else {
+    togglePause();
   }
   touchStart = null;
 });
@@ -481,13 +539,13 @@ document.addEventListener("pointerup", (event) => {
 window.addEventListener("keydown", (event) => {
   if (event.key === "ArrowUp") moveLane(-1);
   if (event.key === "ArrowDown") moveLane(1);
-  if (event.key === "ArrowLeft") setPace("slow");
-  if (event.key === "ArrowRight") setPace("fast");
+  if (event.key === "ArrowLeft") decreasePace();
+  if (event.key === "ArrowRight") increasePace();
   if (event.key === " " || event.key === "Enter") resetGame();
 });
 
-document.querySelector("#slow").addEventListener("click", () => setPace("slow"));
-document.querySelector("#fast").addEventListener("click", () => setPace("fast"));
+document.querySelector("#slow").addEventListener("click", decreasePace);
+document.querySelector("#fast").addEventListener("click", increasePace);
 startButton.addEventListener("click", resetGame);
 
 requestAnimationFrame(loop);
