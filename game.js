@@ -9,6 +9,7 @@ const startButton = document.querySelector("#start");
 
 const COURSE_METERS = 5000;
 const DISTANCE_MULTIPLIER = 3;
+
 const WORLD_SCROLL_MULTIPLIER = 18;
 const GROUND_SCROLL_SCALE = 0.9;
 const LANES = [190, 280, 380];
@@ -98,7 +99,7 @@ function update(dt) {
 
   const pace = PACE[state.pace];
   state.time += dt;
-  state.distance += pace.speed * DISTANCE_MULTIPLIER * dt;
+  state.distance += pace.speed * DISTANCE_COUNTUP_MULTIPLIER * dt;
   state.stamina -= pace.drain * dt;
   state.hitCooldown = Math.max(0, state.hitCooldown - dt);
   state.hitFlash = Math.max(0, state.hitFlash - dt);
@@ -307,9 +308,10 @@ function drawDirtTexture() {
 }
 
 function drawFinishFlag() {
-  const metersLeft = COURSE_METERS - state.distance;
+const metersLeft = COURSE_METERS - state.distance;
   const groundPixelsPerMeter = (WORLD_SCROLL_MULTIPLIER / DISTANCE_MULTIPLIER) * GROUND_SCROLL_SCALE;
   const x = PLAYER_X + metersLeft * groundPixelsPerMeter;
+  
   if (x < -80 || x > canvas.width + 80) return;
 
   pixelRect(x, 122, 4, 82, "#20121f");
