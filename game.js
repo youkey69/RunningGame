@@ -8,7 +8,8 @@ const message = document.querySelector("#message");
 const startButton = document.querySelector("#start");
 
 const COURSE_METERS = 5000;
-const DISTANCE_MULTIPLIER = 5;
+const DISTANCE_MULTIPLIER = 3;
+
 const WORLD_SCROLL_MULTIPLIER = 18;
 const GROUND_SCROLL_SCALE = 0.9;
 const LANES = [190, 280, 380];
@@ -288,7 +289,6 @@ function drawGrassTufts(baseY, height, scrollScale) {
 function drawStones() {
   for (let i = 0; i < 46; i++) {
     const x = wrap(i * 57 - state.worldOffset * GROUND_SCROLL_SCALE, canvas.width + 90) - 45;
-
     const lane = i % LANES.length;
     const y = LANES[lane] + 8 + ((i * 17) % 54);
     const size = 2 + (i % 3);
@@ -301,7 +301,6 @@ function drawStones() {
 function drawDirtTexture() {
   for (let i = 0; i < 170; i++) {
     const x = wrap(i * 41 - state.worldOffset * GROUND_SCROLL_SCALE, canvas.width + 48) - 24;
-
     const y = 188 + ((i * 31) % 300);
     const color = i % 4 === 0 ? "#a95f2e" : i % 4 === 1 ? "#d48a3e" : i % 4 === 2 ? "#8e4f2b" : "#efad55";
     ditherDot(x, y, i, color, i % 5 === 0 ? 3 : 2);
@@ -309,10 +308,10 @@ function drawDirtTexture() {
 }
 
 function drawFinishFlag() {
-  const finishWorldX =
-    PLAYER_X + COURSE_METERS * (WORLD_SCROLL_MULTIPLIER / DISTANCE_MULTIPLIER) * GROUND_SCROLL_SCALE;
-  const x = finishWorldX - state.worldOffset * GROUND_SCROLL_SCALE;
-
+const metersLeft = COURSE_METERS - state.distance;
+  const groundPixelsPerMeter = (WORLD_SCROLL_MULTIPLIER / DISTANCE_MULTIPLIER) * GROUND_SCROLL_SCALE;
+  const x = PLAYER_X + metersLeft * groundPixelsPerMeter;
+  
   if (x < -80 || x > canvas.width + 80) return;
 
   pixelRect(x, 122, 4, 82, "#20121f");
@@ -381,8 +380,26 @@ function drawBackground() {
 function draw() {
   drawBackground();
 
-  const sorted = [...state.objects].sort((a, b) => a.lane - b.lane);
-  for (const object of sorted) {
+  drawDust();
+
+  const playerVisible = state.hitFlash <= 0 || Math.floor(state.hitFlash * 12) % 2 === 0;
+  const renderables = state.objects.map((object) => ({ kind: "object", lane: object.lane, object }));
+  if (playerVisible) renderables.push({ kind: "player", lane: state.lane });
+
+  renderables.sort((a, b) => a.lane - b.lane);
+  for (const renderable of renderables) {
+    if (renderable.kind === "player") {
+      const playerY = LANES[state.lane];
+      drawPixelRunner(PLAYER_X, playerY, 0.86 + state.lane * 0.18, {
+        skin: "#f6b26b",
+        hair: "#5a2c2a",
+        shirt: "#36d1dc",
+        short: "#2a183b",
+      });
+      continue;
+    }
+
+    const object = renderable.object;
     const laneY = LANES[object.lane];
     const scale = object.type === "runner"
       ? 0.86 + object.lane * 0.18
@@ -398,19 +415,6 @@ function draw() {
         short: "#353b9a",
       });
     }
-  }
-
-  drawDust();
-
-  const playerY = LANES[state.lane];
-  const playerVisible = state.hitFlash <= 0 || Math.floor(state.hitFlash * 12) % 2 === 0;
-  if (playerVisible) {
-    drawPixelRunner(PLAYER_X, playerY, 0.86 + state.lane * 0.18, {
-      skin: "#f6b26b",
-      hair: "#5a2c2a",
-      shirt: "#36d1dc",
-      short: "#2a183b",
-    });
   }
 
   const raceText = `${Math.floor(Math.min(state.distance, COURSE_METERS)).toLocaleString()} / 5,000m`;
