@@ -308,7 +308,8 @@ function drawFinishFlag() {
   const metersLeft = COURSE_METERS - state.distance;
   if (metersLeft > 900) return;
 
-  const x = canvas.width - 45 - metersLeft * 0.5;
+  const finishProgress = (900 - metersLeft) / 900;
+  const x = canvas.width + 80 - finishProgress * (canvas.width + 80 - PLAYER_X);
   if (x < -80 || x > canvas.width + 80) return;
 
   pixelRect(x, 122, 4, 82, "#20121f");
@@ -380,7 +381,9 @@ function draw() {
   const sorted = [...state.objects].sort((a, b) => a.lane - b.lane);
   for (const object of sorted) {
     const laneY = LANES[object.lane];
-    const scale = 0.75 + object.lane * 0.18;
+    const scale = object.type === "runner"
+      ? 0.86 + object.lane * 0.18
+      : 0.75 + object.lane * 0.18;
     const y = laneY + Math.sin(object.bob) * 3;
     if (object.type === "water") {
       drawWater(object.x, y, scale);
