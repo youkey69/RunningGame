@@ -8,7 +8,7 @@ const message = document.querySelector("#message");
 const startButton = document.querySelector("#start");
 
 const COURSE_METERS = 5000;
-const DISTANCE_MULTIPLIER = 5;
+const DISTANCE_COUNTUP_MULTIPLIER = 40;
 const LANES = [190, 280, 380];
 const PLAYER_X = 150;
 const PACE = {
@@ -96,7 +96,7 @@ function update(dt) {
 
   const pace = PACE[state.pace];
   state.time += dt;
-  state.distance += pace.speed * DISTANCE_MULTIPLIER * dt;
+  state.distance += pace.speed * DISTANCE_COUNTUP_MULTIPLIER * dt;
   state.stamina -= pace.drain * dt;
   state.hitCooldown = Math.max(0, state.hitCooldown - dt);
   state.hitFlash = Math.max(0, state.hitFlash - dt);
