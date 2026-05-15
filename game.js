@@ -98,7 +98,7 @@ function update(dt) {
 
   const pace = PACE[state.pace];
   state.time += dt;
-  state.distance += pace.speed * DISTANCE_MULTIPLIER * dt;
+  state.distance += pace.speed * DISTANCE_COUNTUP_MULTIPLIER * dt;
   state.stamina -= pace.drain * dt;
   state.hitCooldown = Math.max(0, state.hitCooldown - dt);
   state.hitFlash = Math.max(0, state.hitFlash - dt);
@@ -288,6 +288,7 @@ function drawGrassTufts(baseY, height, scrollScale) {
 function drawStones() {
   for (let i = 0; i < 46; i++) {
     const x = wrap(i * 57 - state.worldOffset * GROUND_SCROLL_SCALE, canvas.width + 90) - 45;
+
     const lane = i % LANES.length;
     const y = LANES[lane] + 8 + ((i * 17) % 54);
     const size = 2 + (i % 3);
@@ -300,6 +301,7 @@ function drawStones() {
 function drawDirtTexture() {
   for (let i = 0; i < 170; i++) {
     const x = wrap(i * 41 - state.worldOffset * GROUND_SCROLL_SCALE, canvas.width + 48) - 24;
+
     const y = 188 + ((i * 31) % 300);
     const color = i % 4 === 0 ? "#a95f2e" : i % 4 === 1 ? "#d48a3e" : i % 4 === 2 ? "#8e4f2b" : "#efad55";
     ditherDot(x, y, i, color, i % 5 === 0 ? 3 : 2);
@@ -310,6 +312,7 @@ function drawFinishFlag() {
   const finishWorldX =
     PLAYER_X + COURSE_METERS * (WORLD_SCROLL_MULTIPLIER / DISTANCE_MULTIPLIER) * GROUND_SCROLL_SCALE;
   const x = finishWorldX - state.worldOffset * GROUND_SCROLL_SCALE;
+
   if (x < -80 || x > canvas.width + 80) return;
 
   pixelRect(x, 122, 4, 82, "#20121f");
