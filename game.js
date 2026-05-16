@@ -2,7 +2,7 @@ const canvas = document.querySelector("#game");
 const ctx = canvas.getContext("2d");
 ctx.imageSmoothingEnabled = false;
 const staminaBar = document.querySelector("#staminaBar");
-const distanceText = document.querySelector("#distance");
+const goldText = document.querySelector("#gold");
 const paceText = document.querySelector("#pace");
 const message = document.querySelector("#message");
 const startButton = document.querySelector("#start");
@@ -16,16 +16,83 @@ const GROUND_SCROLL_SCALE = 0.9;
 const RUNNER_SCROLL_SCALE = 0.72;
 const LANES = [190, 280, 380];
 const PLAYER_X = 150;
-const PACE = {
-  slow: { label: "Slow", speed: 7.4, drain: 3.3 },
-  normal: { label: "Normal", speed: 16.2, drain: 6.6 },
-  fast: { label: "Fast", speed: 22.4, drain: 10.8 },
+const PACE_BASE = {
+  slow: { label: "Slow", speedRatio: 7.4 / 16.2, drainMultiplier: 0.55 },
+  normal: { label: "Normal", speedRatio: 1, drainMultiplier: 1 },
+  fast: { label: "Fast", speedRatio: 22.4 / 16.2, drainMultiplier: 1.1 },
 };
+const BASE_NORMAL_SPEED = 16.2;
+const BASE_STAMINA_DRAIN = 6.6;
+const STAGE_SPEED_MULTIPLIER = 1.1;
+
+const SKY_THEME_STOPS = [
+  { stage: 1, sky: ["#14b8f5", "#72dcff"] },
+  { stage: 5, sky: ["#f5a55e", "#ffd18e"] },
+  { stage: 10, sky: ["#111936", "#050817"] },
+];
+
+const SURFACE_THEMES = [
+  {
+    road: "#c77735",
+    roadEdge: "#8e4f2b",
+    texture: ["#a95f2e", "#d48a3e", "#8e4f2b", "#efad55"],
+    enemy: { shirt: "#ff5964", short: "#353b9a", shoe: "#ff2f45" },
+  },
+  {
+    road: "#b87942",
+    roadEdge: "#74492f",
+    texture: ["#7b4a2e", "#c88343", "#9c653b", "#e0a761"],
+    enemy: { shirt: "#2fd27f", short: "#293276", shoe: "#ff6545" },
+  },
+  {
+    road: "#b87942",
+    roadEdge: "#74492f",
+    texture: ["#7b4a2e", "#c88343", "#9c653b", "#e0a761"],
+    enemy: { shirt: "#2fd27f", short: "#293276", shoe: "#ff6545" },
+  },
+  {
+    road: "#5f6269",
+    roadEdge: "#30323a",
+    texture: ["#32363f", "#737983", "#4a4f5b", "#a5aab3"],
+    enemy: { shirt: "#f7d64a", short: "#7b2468", shoe: "#f04d75" },
+  },
+  {
+    road: "#4c8b45",
+    roadEdge: "#256328",
+    texture: ["#246b2e", "#65b84a", "#3e8e36", "#a9d84c"],
+    enemy: { shirt: "#37c8ff", short: "#22375f", shoe: "#ff4b38" },
+  },
+  {
+    road: "#d6b06c",
+    roadEdge: "#9c7b42",
+    texture: ["#9d7a43", "#e8c77d", "#b99556", "#f4dd9d"],
+    enemy: { shirt: "#ff8a2a", short: "#31406e", shoe: "#f02040" },
+  },
+  {
+    road: "#2f3541",
+    roadEdge: "#171b23",
+    texture: ["#1f2530", "#545d6b", "#333b48", "#808a99"],
+    enemy: { shirt: "#b95cff", short: "#253b75", shoe: "#ff3333" },
+  },
+  {
+    road: "#2f3541",
+    roadEdge: "#171b23",
+    texture: ["#1f2530", "#545d6b", "#333b48", "#808a99"],
+    enemy: { shirt: "#ff77b7", short: "#254875", shoe: "#ff3333" },
+  },
+  {
+    road: "#2f3541",
+    roadEdge: "#171b23",
+    texture: ["#1f2530", "#545d6b", "#333b48", "#808a99"],
+    enemy: { shirt: "#b95cff", short: "#253b75", shoe: "#ff3333" },
+  },
+];
 
 const state = {
   running: false,
   finished: false,
-  paused: false,
+  stage: 1,
+  totalGold: 0,
   lane: 1,
   stamina: 100,
   distance: 0,
@@ -41,16 +108,16 @@ const state = {
   lastFrame: performance.now(),
 };
 
-function resetGame() {
+function resetGame({ advanceStage = false } = {}) {
+  if (advanceStage) state.stage += 1;
   Object.assign(state, {
     running: true,
     finished: false,
-    paused: false,
     lane: 1,
     stamina: 100,
     distance: 0,
     pace: "normal",
-    obstacleTimer: 1.1,
+    obstacleTimer: getObstacleDelay(),
     itemTimer: 2.2,
     hitCooldown: 0,
     hitFlash: 0,
@@ -63,13 +130,87 @@ function resetGame() {
   message.classList.add("hidden");
 }
 
+function handleStartButton() {
+  resetGame({ advanceStage: state.finished });
+}
+
+function hexToRgb(hex) {
+  const value = hex.replace("#", "");
+  return [
+    parseInt(value.slice(0, 2), 16),
+    parseInt(value.slice(2, 4), 16),
+    parseInt(value.slice(4, 6), 16),
+  ];
+}
+
+function rgbToHex(rgb) {
+  return `#${rgb.map((value) => value.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function mixHex(from, to, amount) {
+  const start = hexToRgb(from);
+  const end = hexToRgb(to);
+  return rgbToHex(start.map((value, index) => Math.round(value + (end[index] - value) * amount)));
+}
+
+function getSkyTheme() {
+  const stage = state.stage;
+  const nextStopIndex = SKY_THEME_STOPS.findIndex((stop) => stage <= stop.stage);
+  if (nextStopIndex === -1) return SKY_THEME_STOPS[SKY_THEME_STOPS.length - 1].sky;
+  if (nextStopIndex <= 0) return SKY_THEME_STOPS[0].sky;
+  const from = SKY_THEME_STOPS[nextStopIndex - 1];
+  const to = SKY_THEME_STOPS[nextStopIndex];
+  const amount = Math.min(1, Math.max(0, (stage - from.stage) / (to.stage - from.stage)));
+  return [
+    mixHex(from.sky[0], to.sky[0], amount),
+    mixHex(from.sky[1], to.sky[1], amount),
+  ];
+}
+
+function getStageSpeedFactor() {
+  return STAGE_SPEED_MULTIPLIER ** (state.stage - 1);
+}
+
+function getStaminaStageFactor() {
+  const speedFactor = getStageSpeedFactor();
+  const stageIncrease = speedFactor - 1;
+  if (state.pace === "slow") return 1 + stageIncrease * 0.28;
+  if (state.pace === "normal") return 1 + stageIncrease * 0.42;
+  return 1 + stageIncrease * 0.72;
+}
+
+function getStageTheme() {
+  const surface = SURFACE_THEMES[(state.stage - 1) % SURFACE_THEMES.length];
+  return {
+    ...surface,
+    sky: getSkyTheme(),
+  };
+}
+
+function getPaceConfig(paceName = state.pace) {
+  const base = PACE_BASE[paceName];
+  const stageSpeed = BASE_NORMAL_SPEED * getStageSpeedFactor();
+  return {
+    label: base.label,
+    speed: stageSpeed * base.speedRatio,
+    drainMultiplier: base.drainMultiplier,
+  };
+}
+
+function getObstacleDelay() {
+  const stagePressure = Math.min(0.78, (state.stage - 1) * 0.09);
+  const minDelay = Math.max(0.22, 0.85 - stagePressure);
+  const randomDelay = Math.max(0.34, 1.25 - stagePressure * 1.35);
+  return minDelay + Math.random() * randomDelay;
+}
+
 function moveLane(direction) {
-  if (!state.running || state.paused) return;
+  if (!state.running) return;
   state.lane = Math.max(0, Math.min(2, state.lane + direction));
 }
 
 function setPace(pace) {
-  if (!state.running || state.paused) return;
+  if (!state.running) return;
   if (pace === "fast") emitDust();
   state.pace = pace;
 }
@@ -88,11 +229,6 @@ function decreasePace() {
   } else {
     setPace("slow");
   }
-}
-
-function togglePause() {
-  if (!state.running) return;
-  state.paused = !state.paused;
 }
 
 function spawn(type) {
@@ -121,13 +257,13 @@ function emitDust() {
 
 function update(dt) {
   if (!state.running) return;
-  if (state.paused) return;
 
-  const pace = PACE[state.pace];
+  const pace = getPaceConfig();
+  const normalPace = getPaceConfig("normal");
   const groundScrollSpeed = pace.speed * WORLD_SCROLL_MULTIPLIER * GROUND_SCROLL_SCALE;
   state.time += dt;
   state.distance += pace.speed * DISTANCE_COUNTUP_MULTIPLIER * dt;
-  state.stamina -= pace.drain * dt;
+  state.stamina -= BASE_STAMINA_DRAIN * getStaminaStageFactor() * pace.drainMultiplier * dt;
   state.hitCooldown = Math.max(0, state.hitCooldown - dt);
   state.hitFlash = Math.max(0, state.hitFlash - dt);
   state.worldOffset += pace.speed * WORLD_SCROLL_MULTIPLIER * dt;
@@ -139,12 +275,12 @@ function update(dt) {
     dust.life -= dt;
   }
   state.dusts = state.dusts.filter((dust) => dust.life > 0);
-  state.obstacleTimer -= dt;
+  state.obstacleTimer -= dt * (pace.speed / normalPace.speed);
   state.itemTimer -= dt;
 
   if (state.obstacleTimer <= 0) {
     spawn("runner");
-    state.obstacleTimer = 0.85 + Math.random() * 1.25;
+    state.obstacleTimer = getObstacleDelay();
   }
 
   if (state.itemTimer <= 0) {
@@ -178,8 +314,12 @@ function update(dt) {
 
   if (state.stamina <= 0) endGame("スタミナ切れ！紙コップを取りながらペース配分しよう。", false);
   if (state.distance >= COURSE_METERS) {
-    const prize = Math.max(0, Math.round(15000 - state.time * 120));
-    endGame(`ゴール！ ${formatTime(state.time)} / 賞金 ${prize.toLocaleString()}G`, true);
+    const timePrize = Math.max(0, 15000 - state.time * 120);
+    const staminaRatio = Math.max(0, state.stamina) / 100;
+    const staminaBonus = 0.5 + staminaRatio * 0.5;
+    const prize = Math.max(0, Math.round(timePrize * staminaBonus));
+    state.totalGold += prize;
+    endGame(`タイム ${formatRaceTime(state.time)} / 獲得 ${prize.toLocaleString()}G`, true);
   }
 }
 
@@ -188,7 +328,7 @@ function endGame(text, finished) {
   state.finished = finished;
   message.querySelector("h1").textContent = finished ? "FINISH!" : "GAME OVER";
   message.querySelector("p").textContent = text;
-  startButton.textContent = "RESTART";
+  startButton.textContent = finished ? "NEXT STAGE" : "RESTART";
   message.classList.remove("hidden");
 }
 
@@ -335,10 +475,11 @@ function drawStones() {
 }
 
 function drawDirtTexture() {
+  const texture = getStageTheme().texture;
   for (let i = 0; i < 170; i++) {
     const x = wrap(i * 41 - state.worldOffset * GROUND_SCROLL_SCALE, canvas.width + 48) - 24;
     const y = 188 + ((i * 31) % 300);
-    const color = i % 4 === 0 ? "#a95f2e" : i % 4 === 1 ? "#d48a3e" : i % 4 === 2 ? "#8e4f2b" : "#efad55";
+    const color = texture[i % texture.length];
     ditherDot(x, y, i, color, i % 5 === 0 ? 3 : 2);
   }
 }
@@ -376,9 +517,10 @@ function drawDust() {
 function drawBackground() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+  const theme = getStageTheme();
   const sky = ctx.createLinearGradient(0, 0, 0, 220);
-  sky.addColorStop(0, "#14b8f5");
-  sky.addColorStop(1, "#72dcff");
+  sky.addColorStop(0, theme.sky[0]);
+  sky.addColorStop(1, theme.sky[1]);
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, canvas.width, 220);
 
@@ -397,7 +539,7 @@ function drawBackground() {
   pixelRect(0, 190, canvas.width, 18, "#04351f");
   drawGrassTufts(176, 26, 0.45);
 
-  ctx.fillStyle = "#c77735";
+  ctx.fillStyle = theme.road;
   ctx.beginPath();
   ctx.moveTo(0, 180);
   ctx.lineTo(canvas.width, 180);
@@ -406,29 +548,18 @@ function drawBackground() {
   ctx.closePath();
   ctx.fill();
 
-  pixelRect(0, 180, canvas.width, 5, "#8e4f2b");
+  pixelRect(0, 180, canvas.width, 5, theme.roadEdge);
   drawDirtTexture();
   drawStones();
   drawFinishFlag();
   drawGrassTufts(486, 54, 1.1);
 }
 
-function drawPauseOverlay() {
-  pixelRect(348, 218, 264, 86, "#20121fcc");
-  pixelRect(356, 226, 248, 70, "#1f2d55ee");
-  ctx.font = "bold 46px monospace";
-  ctx.textAlign = "center";
-  ctx.fillStyle = "#20121f";
-  ctx.fillText("PAUSE", 482, 273);
-  ctx.fillStyle = "#ffd447";
-  ctx.fillText("PAUSE", 480, 271);
-  ctx.textAlign = "left";
-}
-
 function draw() {
   drawBackground();
 
   drawDust();
+  const theme = getStageTheme();
 
   const playerVisible = state.hitFlash <= 0 || Math.floor(state.hitFlash * 12) % 2 === 0;
   const renderables = state.objects.map((object) => ({ kind: "object", lane: object.lane, object }));
@@ -459,32 +590,45 @@ function draw() {
       drawPixelRunner(object.x, y, scale, {
         skin: "#f0a86a",
         hair: "#2a183b",
-        shirt: "#ff5964",
-        short: "#353b9a",
-        shoe: "#ff2f45",
+        shirt: theme.enemy.shirt,
+        short: theme.enemy.short,
+        shoe: theme.enemy.shoe,
         glasses: "#101015",
       });
     }
   }
 
-  const raceText = `${Math.floor(Math.min(state.distance, COURSE_METERS)).toLocaleString()} / 5,000m`;
+  const distanceDisplayText = `${Math.floor(Math.min(state.distance, COURSE_METERS)).toLocaleString()} / 5,000m`;
+  const timeDisplayText = formatRaceTime(state.time);
   ctx.font = "bold 32px monospace";
   ctx.textAlign = "right";
   ctx.fillStyle = "#20121f";
-  ctx.fillText(raceText, 928, 43);
-  ctx.fillText(raceText, 932, 43);
-  ctx.fillText(raceText, 930, 41);
-  ctx.fillText(raceText, 930, 45);
+  ctx.fillText(timeDisplayText, 628, 39);
+  ctx.fillText(timeDisplayText, 632, 39);
+  ctx.fillText(timeDisplayText, 630, 37);
+  ctx.fillText(timeDisplayText, 630, 41);
+  ctx.fillText(distanceDisplayText, 928, 39);
+  ctx.fillText(distanceDisplayText, 932, 39);
+  ctx.fillText(distanceDisplayText, 930, 37);
+  ctx.fillText(distanceDisplayText, 930, 41);
   ctx.fillStyle = "#f8fbff";
-  ctx.fillText(raceText, 930, 43);
+  ctx.fillText(timeDisplayText, 630, 39);
+  ctx.fillText(distanceDisplayText, 930, 39);
+  ctx.textAlign = "left";
+  const stageText = `STAGE ${state.stage}`;
+  ctx.fillStyle = "#20121f";
+  ctx.fillText(stageText, 28, 43);
+  ctx.fillText(stageText, 32, 43);
+  ctx.fillText(stageText, 30, 41);
+  ctx.fillText(stageText, 30, 45);
+  ctx.fillStyle = "#f8fbff";
+  ctx.fillText(stageText, 30, 43);
   ctx.textAlign = "left";
 
   staminaBar.style.width = `${Math.max(0, state.stamina)}%`;
   staminaBar.style.background = state.stamina < 25 ? "var(--danger)" : "linear-gradient(90deg, #48e07c, #f7e34f)";
-  distanceText.textContent = Math.floor(Math.min(state.distance, COURSE_METERS)).toLocaleString();
-  paceText.textContent = state.paused ? "Paused" : PACE[state.pace].label;
-
-  if (state.paused) drawPauseOverlay();
+  goldText.textContent = state.totalGold.toLocaleString();
+  paceText.textContent = getPaceConfig().label;
 }
 
 function loop(now) {
@@ -499,6 +643,13 @@ function formatTime(seconds) {
   const minutes = Math.floor(seconds / 60);
   const rest = Math.floor(seconds % 60).toString().padStart(2, "0");
   return `${minutes}:${rest}`;
+}
+
+function formatRaceTime(seconds) {
+  const minutes = Math.floor(seconds / 60).toString().padStart(2, "0");
+  const restSeconds = Math.floor(seconds % 60).toString().padStart(2, "0");
+  const centiseconds = Math.floor((seconds % 1) * 100).toString().padStart(2, "0");
+  return `${minutes}'${restSeconds}"${centiseconds}`;
 }
 
 const SWIPE_MOVE_LIMIT = 48;
@@ -530,8 +681,6 @@ document.addEventListener("pointerup", (event) => {
     }
   } else if (Math.abs(dy) > SWIPE_MOVE_LIMIT && Math.abs(dy) > Math.abs(dx)) {
     moveLane(dy < 0 ? -1 : 1);
-  } else {
-    togglePause();
   }
   touchStart = null;
 });
@@ -541,11 +690,9 @@ window.addEventListener("keydown", (event) => {
   if (event.key === "ArrowDown") moveLane(1);
   if (event.key === "ArrowLeft") decreasePace();
   if (event.key === "ArrowRight") increasePace();
-  if (event.key === " " || event.key === "Enter") resetGame();
+  if (event.key === " " || event.key === "Enter") handleStartButton();
 });
 
-document.querySelector("#slow").addEventListener("click", decreasePace);
-document.querySelector("#fast").addEventListener("click", increasePace);
-startButton.addEventListener("click", resetGame);
+startButton.addEventListener("click", handleStartButton);
 
 requestAnimationFrame(loop);
